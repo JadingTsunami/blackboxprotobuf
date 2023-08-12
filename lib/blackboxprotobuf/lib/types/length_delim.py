@@ -125,9 +125,12 @@ def encode_message(data, config, typedef, path=None, field_order=None):
                 # encoding for packed numbers but our main conern when ordering
                 # fields is that it's a default decoding which won't be a packed
                 try:
+                    # change: process arrays all-at-once instead of one-at-a-time
+                    # ideally, we should follow the field order, but this was causing
+                    # arrays to be split up into multiple chunks and sometimes
+                    # re-encoded with duplicate entries, which may not parse correctly
                     new_output = _encode_message_field(
-                        config, typedef, path, field_number, value,
-                        selected_index=index, skiplist=skiplist
+                        config, typedef, path, field_number, value, skiplist=skiplist
                     )
                     output += new_output
                 except EncoderException as exc:
@@ -139,7 +142,11 @@ def encode_message(data, config, typedef, path=None, field_order=None):
                         exc,
                     )
                 finally:
-                    skiplist.add((field_number, index))
+                    if isinstance(value, list):
+                        for i in range(len(value)):
+                            skiplist.add((field_number, i))
+                    else:
+                        skiplist.add((field_number, index))
 
     for field_number, value in data.items():
         new_output = _encode_message_field(
